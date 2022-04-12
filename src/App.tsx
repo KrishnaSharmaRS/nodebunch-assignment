@@ -1,26 +1,63 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import { Suspense, lazy, useState, useEffect, createContext, Dispatch, SetStateAction } from "react";
+import { Routes, Route } from "react-router-dom";
+
+import BodyContainer from "./components/BodyContainer";
+import HomePage from "./pages/home";
+import { auth, getUserDocument } from "./firebase/firebase.utils";
+import "./App.css";
+
+interface IState {
+    currentUser: null | { [k: string]: any };
+}
+
+export const AppContext = createContext<{ state: IState; setState: Dispatch<SetStateAction<IState>> }>({
+    state: {
+        currentUser: null,
+    },
+    setState: () => {},
+});
+
+const SignInPage = lazy(() => import("./pages/sign-in"));
+const SignUpPage = lazy(() => import("./pages/sign-up"));
 
 function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
+    const [state, setState] = useState<IState>({
+        currentUser: null,
+    });
+
+    useEffect(() => {
+        auth.onAuthStateChanged(async (user) => {
+            if (!user) return setState((prev) => ({ ...prev, currentUser: null }));
+            const doc = await getUserDocument(user);
+            if (!doc) return;
+            setState((prev) => ({ ...prev, currentUser: doc }));
+        });
+    }, []);
+
+    return (
+        <AppContext.Provider
+            value={{
+                state,
+                setState,
+            }}
         >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+            <BodyContainer>
+                <Suspense
+                    fallback={
+                        <div className="page-loader">
+                            <h2>Loading...</h2>
+                        </div>
+                    }
+                >
+                    <Routes>
+                        <Route path="/" element={<HomePage />} />
+                        <Route path="/log-in" element={<SignInPage />} />
+                        <Route path="/register" element={<SignUpPage />} />
+                    </Routes>
+                </Suspense>
+            </BodyContainer>
+        </AppContext.Provider>
+    );
 }
 
 export default App;
